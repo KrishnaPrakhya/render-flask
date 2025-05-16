@@ -296,8 +296,6 @@ def supervisor_agent(state: AgentState) -> AgentState:
     try:
         latest_message = state["messages"][-1]["content"]
         intent = str(detect_intent(latest_message).lower().strip())
-        print(intent)
-        print(intent)
         intent_to_agent = {
             "document_improvement": "document_improver",
             "job_search": "job_searcher",
@@ -371,8 +369,6 @@ def job_searcher(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"].lower()
-        print(latest_message)
-        print("i am in job searcher")
         keywords = user_profile.get("skills", [])[:5]
         location = None
         if "in" in latest_message and any(city in latest_message for city in ["new york", "san francisco", "london", "hyderabad", "mumbai"]):
