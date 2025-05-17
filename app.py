@@ -28,6 +28,7 @@ CORS(
             "origins": ["http://localhost:3000", "https://your-react-app-on-render.com"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
+             "supports_credentials": True 
         }
     },
 )
@@ -566,66 +567,67 @@ def create_career_advisor_graph():
 graph = create_career_advisor_graph()
 
 # API Endpoint
-@app.route('/api/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST','OPTIONS'])
 def chat():
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'success'}), 200
-    data = request.json
-    user_message = data.get('message', '')
-    clerk_user_id = data.get('clerkUserId')
-    if not clerk_user_id:
-        return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
-    
-    user = User.query.filter_by(clerkUserId=clerk_user_id).first()
-    if not user:
-        return jsonify({'status': 'error', 'message': 'User not found'}), 404
-    
-    user_profile = {
-        'clerkUserId': clerk_user_id,
-        'resume_content': user.Resumes.content if user.Resumes else '',
-        'cover_letter_content': user.CoverLetters[0].content if user.CoverLetters else '',
-        'skills': user.skills or [],
-        'industry': user.industry or '',
-        'experience_years': user.experience or 0,
-        'current_role': user.bio or ''
-    }
-    
-    chat_history = [
-        {"role": "user" if h.userId == user.id else "assistant", "content": h.content}
-        for h in ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.desc()).limit(10).all()
-    ]
-    
-    state = {
-        "messages": chat_history,
-        "user_profile": user_profile,
-        "next_agent": None,
-        "intent": None,
-        "task_completed": False
-    }
-    state["messages"].append({"role": "user", "content": user_message})
-    
-    result = graph.invoke(state)
-    
-    db.session.add(ChatHistory(
-        userId=user.id,
-        industryInsightId=None,
-        content=user_message
-    ))
-    db.session.add(ChatHistory(
-        userId=user.id,
-        industryInsightId=None,
-        content=result["messages"][-1]["content"]
-    ))
-    db.session.commit()
-    
-    return jsonify({
-        'status': 'success',
-        'response': result["messages"][-1]["content"],
-        'history': result["messages"]
-    })
-        # logger.error(f"Error in chat endpoint: {str(e)}")
-        # return jsonify({'status': 'error', 'message': str(e)}), 500
-
+    if request.method == 'POST':
+        try:  
+            data = request.json
+            user_message = data.get('message', '')
+            clerk_user_id = data.get('clerkUserId')
+            if not clerk_user_id:
+                return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
+            
+            user = User.query.filter_by(clerkUserId=clerk_user_id).first()
+            if not user:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+            
+            user_profile = {
+                'clerkUserId': clerk_user_id,
+                'resume_content': user.Resumes.content if user.Resumes else '',
+                'cover_letter_content': user.CoverLetters[0].content if user.CoverLetters else '',
+                'skills': user.skills or [],
+                'industry': user.industry or '',
+                'experience_years': user.experience or 0,
+                'current_role': user.bio or ''
+            }
+            
+            chat_history = [
+                {"role": "user" if h.userId == user.id else "assistant", "content": h.content}
+                for h in ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.desc()).limit(10).all()
+            ]
+            
+            state = {
+                "messages": chat_history,
+                "user_profile": user_profile,
+                "next_agent": None,
+                "intent": None,
+                "task_completed": False
+            }
+            state["messages"].append({"role": "user", "content": user_message})
+            
+            result = graph.invoke(state)
+            
+            db.session.add(ChatHistory(
+                userId=user.id,
+                industryInsightId=None,
+                content=user_message
+            ))
+            db.session.add(ChatHistory(
+                userId=user.id,
+                industryInsightId=None,
+                content=result["messages"][-1]["content"]
+            ))
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'response': result["messages"][-1]["content"],
+                'history': result["messages"]
+            })
+        except Exception as e:
+            logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
+            return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
+        
 if __name__ == "__main__":
     init_db()
     app.run(port=5000)
