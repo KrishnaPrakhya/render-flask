@@ -578,11 +578,19 @@ def chat():
             user_message = data.get('message', '')
             clerk_user_id = data.get('clerkUserId')
             if not clerk_user_id:
-                return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
+                response=jsonify({'status': 'error', 'message': 'clerkUserId is required'})
+                response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+                return response, 400
             
             user = User.query.filter_by(clerkUserId=clerk_user_id).first()
             if not user:
-                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+                response=jsonify({'status': 'error', 'message': 'User not found'})
+                response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+                return response, 404
             
             user_profile = {
                 'clerkUserId': clerk_user_id,
@@ -632,8 +640,12 @@ def chat():
             response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
             return response,200
         except Exception as e:
+            response= jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)})
+            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
             logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
-            return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
+            return response, 500
         
 if __name__ == "__main__":
     init_db()
