@@ -621,12 +621,16 @@ def chat():
                 content=result["messages"][-1]["content"]
             ))
             db.session.commit()
-            
-            return jsonify({
+
+            response=jsonify({
                 'status': 'success',
                 'response': result["messages"][-1]["content"],
                 'history': result["messages"]
             })
+            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            return response,200
         except Exception as e:
             logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
             return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
