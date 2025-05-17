@@ -21,7 +21,14 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -560,7 +567,11 @@ graph = create_career_advisor_graph()
 @app.route('/api/chat', methods=['POST','OPTIONS'])
 def chat():
     if request.method == 'OPTIONS':
-        return jsonify({'status': 'success'}), 200  
+        response = jsonify({'status': 'preflight'})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        return response, 200 
     if request.method == 'POST':
         try:  
             data = request.json
