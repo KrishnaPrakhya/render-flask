@@ -564,7 +564,7 @@ def create_career_advisor_graph():
 graph = create_career_advisor_graph()
 
 # API Endpoint
-@app.route('/', methods=['POST','OPTIONS'])
+@app.route('/api/chat', methods=['POST','OPTIONS'])
 def chat():
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'preflight'})
@@ -649,4 +649,4 @@ def chat():
         
 if __name__ == "__main__":
     init_db()
-    app.run(port=5000)
+    app.run(host="0.0.0.0")
