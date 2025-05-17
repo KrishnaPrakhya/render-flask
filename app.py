@@ -569,6 +569,8 @@ graph = create_career_advisor_graph()
 # API Endpoint
 @app.route('/api/chat', methods=['POST','OPTIONS'])
 def chat():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'success'}), 200  
     if request.method == 'POST':
         try:  
             data = request.json
