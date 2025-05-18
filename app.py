@@ -557,7 +557,7 @@ def create_career_advisor_graph():
 graph = create_career_advisor_graph()
 
 # API Endpoint
-@app.route('/api/chat', methods=['POST','OPTIONS'])
+@app.route('/api/chat', methods=['POST'])
 def chat():
     # Flask-CORS handles the OPTIONS preflight request automatically based on the global config
     # No need for the explicit OPTIONS method block here unless you have very specific preflight needs
