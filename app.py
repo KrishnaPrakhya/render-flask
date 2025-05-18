@@ -556,6 +556,12 @@ def create_career_advisor_graph():
 # Initialize Graph Once
 graph = create_career_advisor_graph()
 
+@app.route('/api/test1',methods=['GET'])
+def test1():
+    return  jsonify({"message": "CORS test successful"})
+@app.route('/api/test2',methods=['POST'])
+def test2():
+    return  jsonify({"message": "CORS teest successful"})
 # API Endpoint
 @app.route('/api/chat', methods=['POST'])
 def chat():
