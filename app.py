@@ -103,6 +103,12 @@ else:
         logger.error(f"Failed to initialize Google Generative AI: {e}")
         llm = None
 
+
+# Validate Tavily API Key if used
+if not os.getenv("TAVILY_API_KEY"):
+    logger.critical("❌ TAVILY_API_KEY required for search functionality")
+    raise RuntimeError("Missing TAVILY_API_KEY environment variable")
+
 # Input Models (Unchanged)
 class DocumentInput(BaseModel):
     content: str = Field(description="Document content")
@@ -557,7 +563,7 @@ def create_career_advisor_graph():
     return workflow.compile()
 
 # Initialize Graph Once
-graph = create_career_advisor_graph()
+
 
 @app.route('/api/test1',methods=['GET'])
 def test1():
@@ -574,6 +580,7 @@ def chat():
     # and remove the 'if request.method == OPTIONS' block.
     try:
         data = request.json
+        graph = create_career_advisor_graph()
         user_message = data.get('message', '')
         clerk_user_id = data.get('clerkUserId')
 
