@@ -559,32 +559,26 @@ graph = create_career_advisor_graph()
 # API Endpoint
 @app.route('/api/chat', methods=['POST','OPTIONS'])
 def chat():
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'preflight'})
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        return response, 200 
+    # Flask-CORS handles the OPTIONS preflight request automatically based on the global config
+    # No need for the explicit OPTIONS method block here unless you have very specific preflight needs
+    # that are not covered by Flask-CORS defaults. For standard cases, remove the 'OPTIONS' from methods
+    # and remove the 'if request.method == OPTIONS' block.
+    
     if request.method == 'POST':
-        try:  
+        try:
             data = request.json
             user_message = data.get('message', '')
             clerk_user_id = data.get('clerkUserId')
+
             if not clerk_user_id:
-                response=jsonify({'status': 'error', 'message': 'clerkUserId is required'})
-                response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-                response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-                return response, 400
-            
+                # Flask-CORS should add headers to this jsonify response automatically
+                return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
+
             user = User.query.filter_by(clerkUserId=clerk_user_id).first()
             if not user:
-                response=jsonify({'status': 'error', 'message': 'User not found'})
-                response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-                response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-                response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-                return response, 404
-            
+                # Flask-CORS should add headers to this jsonify response automatically
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
             user_profile = {
                 'clerkUserId': clerk_user_id,
                 'resume_content': user.Resumes.content if user.Resumes else '',
@@ -592,14 +586,16 @@ def chat():
                 'skills': user.skills or [],
                 'industry': user.industry or '',
                 'experience_years': user.experience or 0,
-                'current_role': user.bio or ''
+                'current_role': user.bio or '' # Assuming bio is used for current_role
             }
-            
+
+            # Fetch chat history (adjust limit/order as needed)
+            chat_history_db = ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.asc()).limit(10).all()
             chat_history = [
                 {"role": "user" if h.userId == user.id else "assistant", "content": h.content}
-                for h in ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.desc()).limit(10).all()
+                for h in chat_history_db
             ]
-            
+
             state = {
                 "messages": chat_history,
                 "user_profile": user_profile,
@@ -608,38 +604,49 @@ def chat():
                 "task_completed": False
             }
             state["messages"].append({"role": "user", "content": user_message})
-            
-            result = graph.invoke(state)
-            
-            db.session.add(ChatHistory(
-                userId=user.id,
-                industryInsightId=None,
-                content=user_message
-            ))
-            db.session.add(ChatHistory(
-                userId=user.id,
-                industryInsightId=None,
-                content=result["messages"][-1]["content"]
-            ))
-            db.session.commit()
 
-            response=jsonify({
+            logger.info(f"Invoking graph with state: {state}") # Log state before invoking graph
+            result = graph.invoke(state)
+            logger.info(f"Graph returned result: {result}") # Log result after invoking graph
+
+            # Save chat history
+            try:
+                db.session.add(ChatHistory(
+                    userId=user.id,
+                    industryInsightId=None, # Or relevant ID if applicable
+                    content=user_message
+                ))
+                # Check if the graph returned a message before saving
+                assistant_response_content = result["messages"][-1]["content"] if result and result.get("messages") else None
+                if assistant_response_content:
+                     db.session.add(ChatHistory(
+                        userId=user.id,
+                        industryInsightId=None, # Or relevant ID if applicable
+                        content=assistant_response_content
+                     ))
+                db.session.commit()
+                logger.info("Chat history saved.")
+            except Exception as db_error:
+                 db.session.rollback() # Rollback in case of error
+                 logger.error(f"Error saving chat history: {str(db_error)}", exc_info=True)
+                 # Decide if you want to return an error to the user or proceed
+
+            # Flask-CORS should add headers to this jsonify response automatically
+            return jsonify({
                 'status': 'success',
-                'response': result["messages"][-1]["content"],
-                'history': result["messages"]
-            })
-            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-            return response,200
+                'response': result["messages"][-1]["content"], # Assuming the last message is the final response
+                'history': result["messages"] # You might want to return the full history including the new exchange
+            }), 200
+
         except Exception as e:
-            response= jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)})
-            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            # Flask-CORS should add headers to this jsonify response automatically
             logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
-            return response, 500
-        
+            return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
+
+    # If you remove 'OPTIONS' from methods, this block is unnecessary
+    # If keeping it for custom preflight logic, ensure Flask-CORS isn't overriding it
+    # else: # Handle other methods if necessary, though typically only POST is needed for chat
+    #     return jsonify({'status': 'method not allowed', 'message': 'Method not allowed'}), 405 
 if __name__ == "__main__":
     init_db()
     app.run(port=5000)
