@@ -508,7 +508,9 @@ def router(state: AgentState) -> Literal["supervisor", "document_improver", "job
 
 # Create Workflow
 def create_career_advisor_graph():
+    logger.log("I am herei n the graph")
     workflow = StateGraph(AgentState)
+    logger.log("I am herei n the after state")
     
     # Add nodes
     workflow.add_node("supervisor", supervisor_agent)
@@ -551,6 +553,7 @@ def create_career_advisor_graph():
             }
         )
     
+    logger.log("I am herei before returing")
     return workflow.compile()
 
 # Initialize Graph Once
