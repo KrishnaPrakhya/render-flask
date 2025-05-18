@@ -569,85 +569,89 @@ def chat():
     # No need for the explicit OPTIONS method block here unless you have very specific preflight needs
     # that are not covered by Flask-CORS defaults. For standard cases, remove the 'OPTIONS' from methods
     # and remove the 'if request.method == OPTIONS' block.
-    
-    if request.method == 'POST':
+    try:
+        data = request.json
+        user_message = data.get('message', '')
+        clerk_user_id = data.get('clerkUserId')
+
+        if not clerk_user_id:
+            # Flask-CORS should add headers to this jsonify response automatically
+            return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
+
+        user = User.query.filter_by(clerkUserId=clerk_user_id).first()
+        if not user:
+            # Flask-CORS should add headers to this jsonify response automatically
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+        user_profile = {
+            'clerkUserId': clerk_user_id,
+            'resume_content': user.Resumes.content if user.Resumes else '',
+            'cover_letter_content': user.CoverLetters[0].content if user.CoverLetters else '',
+            'skills': user.skills or [],
+            'industry': user.industry or '',
+            'experience_years': user.experience or 0,
+            'current_role': user.bio or '' # Assuming bio is used for current_role
+        }
+
+        # Fetch chat history (adjust limit/order as needed)
+        chat_history_db = ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.asc()).limit(10).all()
+        chat_history = [
+            {"role": "user" if h.userId == user.id else "assistant", "content": h.content}
+            for h in chat_history_db
+        ]
+
+        state = {
+            "messages": chat_history,
+            "user_profile": user_profile,
+            "next_agent": None,
+            "intent": None,
+            "task_completed": False
+        }
+        state["messages"].append({"role": "user", "content": user_message})
+
+        logger.info(f"Invoking graph with state: {state}") # Log state before invoking graph
         try:
-            data = request.json
-            user_message = data.get('message', '')
-            clerk_user_id = data.get('clerkUserId')
-
-            if not clerk_user_id:
-                # Flask-CORS should add headers to this jsonify response automatically
-                return jsonify({'status': 'error', 'message': 'clerkUserId is required'}), 400
-
-            user = User.query.filter_by(clerkUserId=clerk_user_id).first()
-            if not user:
-                # Flask-CORS should add headers to this jsonify response automatically
-                return jsonify({'status': 'error', 'message': 'User not found'}), 404
-
-            user_profile = {
-                'clerkUserId': clerk_user_id,
-                'resume_content': user.Resumes.content if user.Resumes else '',
-                'cover_letter_content': user.CoverLetters[0].content if user.CoverLetters else '',
-                'skills': user.skills or [],
-                'industry': user.industry or '',
-                'experience_years': user.experience or 0,
-                'current_role': user.bio or '' # Assuming bio is used for current_role
-            }
-
-            # Fetch chat history (adjust limit/order as needed)
-            chat_history_db = ChatHistory.query.filter_by(userId=user.id).order_by(ChatHistory.createdAt.asc()).limit(10).all()
-            chat_history = [
-                {"role": "user" if h.userId == user.id else "assistant", "content": h.content}
-                for h in chat_history_db
-            ]
-
-            state = {
-                "messages": chat_history,
-                "user_profile": user_profile,
-                "next_agent": None,
-                "intent": None,
-                "task_completed": False
-            }
-            state["messages"].append({"role": "user", "content": user_message})
-
-            logger.info(f"Invoking graph with state: {state}") # Log state before invoking graph
             result = graph.invoke(state)
-            logger.info(f"Graph returned result: {result}") # Log result after invoking graph
+            logger.info(f"Graph invoked successfully. Result: {result}") # Add this log
+        except Exception as graph_error:
+            logger.error(f"Error during graph invocation: {str(graph_error)}", exc_info=True) # Log graph errors specifically
+            # Re-raise the exception or handle it appropriately if you want it to go to the outer except
+            raise graph_error # Re-raising will send it to the outer catch
+        logger.info(f"Graph returned result: {result}") # Log result after invoking graph
 
-            # Save chat history
-            try:
-                db.session.add(ChatHistory(
+        # Save chat history
+        try:
+            db.session.add(ChatHistory(
+                userId=user.id,
+                industryInsightId=None, # Or relevant ID if applicable
+                content=user_message
+            ))
+            # Check if the graph returned a message before saving
+            assistant_response_content = result["messages"][-1]["content"] if result and result.get("messages") else None
+            if assistant_response_content:
+                    db.session.add(ChatHistory(
                     userId=user.id,
                     industryInsightId=None, # Or relevant ID if applicable
-                    content=user_message
-                ))
-                # Check if the graph returned a message before saving
-                assistant_response_content = result["messages"][-1]["content"] if result and result.get("messages") else None
-                if assistant_response_content:
-                     db.session.add(ChatHistory(
-                        userId=user.id,
-                        industryInsightId=None, # Or relevant ID if applicable
-                        content=assistant_response_content
-                     ))
-                db.session.commit()
-                logger.info("Chat history saved.")
-            except Exception as db_error:
-                 db.session.rollback() # Rollback in case of error
-                 logger.error(f"Error saving chat history: {str(db_error)}", exc_info=True)
-                 # Decide if you want to return an error to the user or proceed
+                    content=assistant_response_content
+                    ))
+            db.session.commit()
+            logger.info("Chat history saved.")
+        except Exception as db_error:
+                db.session.rollback() # Rollback in case of error
+                logger.error(f"Error saving chat history: {str(db_error)}", exc_info=True)
+                # Decide if you want to return an error to the user or proceed
 
-            # Flask-CORS should add headers to this jsonify response automatically
-            return jsonify({
-                'status': 'success',
-                'response': result["messages"][-1]["content"], # Assuming the last message is the final response
-                'history': result["messages"] # You might want to return the full history including the new exchange
-            }), 200
+        # Flask-CORS should add headers to this jsonify response automatically
+        return jsonify({
+            'status': 'success',
+            'response': result["messages"][-1]["content"], # Assuming the last message is the final response
+            'history': result["messages"] # You might want to return the full history including the new exchange
+        }), 200
 
-        except Exception as e:
-            # Flask-CORS should add headers to this jsonify response automatically
-            logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
-            return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
+    except Exception as e:
+        # Flask-CORS should add headers to this jsonify response automatically
+        logger.error(f"Error in chat endpoint POST: {str(e)}", exc_info=True) # Log traceback
+        return jsonify({'status': 'error', 'message': 'An unexpected server error occurred: ' + str(e)}), 500
 
     # If you remove 'OPTIONS' from methods, this block is unnecessary
     # If keeping it for custom preflight logic, ensure Flask-CORS isn't overriding it
