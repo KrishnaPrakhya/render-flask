@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 import datetime
 import uuid
 from sqlalchemy import inspect
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -573,7 +574,7 @@ def test2():
     return  jsonify({"message": "CORS teest successful"})
 # API Endpoint
 @app.route('/api/chat', methods=['POST'])
-def chat():
+async def chat():
     # Flask-CORS handles the OPTIONS preflight request automatically based on the global config
     # No need for the explicit OPTIONS method block here unless you have very specific preflight needs
     # that are not covered by Flask-CORS defaults. For standard cases, remove the 'OPTIONS' from methods
@@ -620,7 +621,7 @@ def chat():
 
         logger.info(f"Invoking graph with state: {state}") # Log state before invoking graph
         try:
-            result = graph.invoke(state)
+            result = asyncio.run(graph.invoke(state))
             logger.info(f"Graph invoked successfully. Result: {result}") # Add this log
         except Exception as graph_error:
             logger.error(f"Error during graph invocation: {str(graph_error)}", exc_info=True) # Log graph errors specifically
