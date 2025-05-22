@@ -574,7 +574,7 @@ def test2():
     return  jsonify({"message": "CORS teest successful"})
 # API Endpoint
 @app.route('/api/chat', methods=['POST'])
-async def chat():
+def chat():
     # Flask-CORS handles the OPTIONS preflight request automatically based on the global config
     # No need for the explicit OPTIONS method block here unless you have very specific preflight needs
     # that are not covered by Flask-CORS defaults. For standard cases, remove the 'OPTIONS' from methods
