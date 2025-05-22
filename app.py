@@ -299,7 +299,7 @@ class AgentState(TypedDict):
     task_completed: bool
 
 # Supervisor Agent
-def supervisor_agent(state: AgentState) -> AgentState:
+async def supervisor_agent(state: AgentState) -> AgentState:
     try:
         latest_message = state["messages"][-1]["content"]
         intent = str(detect_intent(latest_message).lower().strip())
@@ -321,8 +321,9 @@ def supervisor_agent(state: AgentState) -> AgentState:
         state["task_completed"] = True
         state["next_agent"] = None
         return state
+
 # Agent Functions (Unchanged for brevity, but modularized)
-def document_improver(state: AgentState) -> AgentState:
+async def document_improver(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"].lower()
@@ -372,7 +373,7 @@ def document_improver(state: AgentState) -> AgentState:
         state["task_completed"] = True
         return state
 
-def job_searcher(state: AgentState) -> AgentState:
+async def job_searcher(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"].lower()
@@ -397,7 +398,7 @@ def job_searcher(state: AgentState) -> AgentState:
         state["task_completed"] = True
         return state
 
-def career_advisor(state: AgentState) -> AgentState:
+async def career_advisor(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"]
@@ -432,7 +433,7 @@ def career_advisor(state: AgentState) -> AgentState:
         state["task_completed"] = True
         return state
 
-def schedule_generator(state: AgentState) -> AgentState:
+async def schedule_generator(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"].lower()
@@ -464,7 +465,7 @@ def schedule_generator(state: AgentState) -> AgentState:
         state["task_completed"] = True
         return state
 
-def interview_preparer(state: AgentState) -> AgentState:
+async def interview_preparer(state: AgentState) -> AgentState:
     try:
         user_profile = state.get("user_profile", {})
         latest_message = state["messages"][-1]["content"].lower()
@@ -508,7 +509,7 @@ def detect_intent(user_message: str) -> str:
     chain = prompt | llm | StrOutputParser()
     return chain.invoke({"user_message": user_message})
 
-def router(state: AgentState) -> Literal["supervisor", "document_improver", "job_searcher", "career_advisor", "schedule_generator", "interview_preparer", "END"]:
+async def router(state: AgentState) -> Literal["supervisor", "document_improver", "job_searcher", "career_advisor", "schedule_generator", "interview_preparer", "END"]:
     if state["task_completed"]:
         return "supervisor" if state["messages"][-1]["content"].startswith("Error") else "END"
     return state["next_agent"] or "supervisor"
